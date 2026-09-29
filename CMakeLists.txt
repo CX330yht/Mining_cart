@@ -44,16 +44,21 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+        Drivers/SEGGER_RTT/RTT/SEGGER_RTT.c
+        Drivers/SEGGER_RTT/RTT/SEGGER_RTT_printf.c
     # Add user sources here
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+        Drivers/SEGGER_RTT/RTT
+        Drivers/SEGGER_RTT/Config
     # Add user defined include paths
 )
 
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
+        RTT_USE_ASM=0
     # Add user defined symbols
 )
 
