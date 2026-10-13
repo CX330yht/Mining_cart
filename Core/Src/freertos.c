@@ -50,6 +50,7 @@
 /* USER CODE END Variables */
 osThreadId StatusTaskHandle;
 osThreadId MotorTaskHandle;
+osThreadId ServoTaskHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -58,6 +59,7 @@ osThreadId MotorTaskHandle;
 
 void StartStatusTask(void const * argument);
 void StartMotorTask(void const * argument);
+void StartServoTask(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -112,6 +114,10 @@ void MX_FREERTOS_Init(void) {
   osThreadDef(MotorTask, StartMotorTask, osPriorityHigh, 0, 256);
   MotorTaskHandle = osThreadCreate(osThread(MotorTask), NULL);
 
+  /* definition and creation of ServoTask */
+  osThreadDef(ServoTask, StartServoTask, osPriorityNormal, 0, 256);
+  ServoTaskHandle = osThreadCreate(osThread(ServoTask), NULL);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
@@ -162,6 +168,24 @@ void StartMotorTask(void const * argument)
   (void)argument;
   MotorControl_Task();
   /* USER CODE END StartMotorTask */
+}
+
+/* USER CODE BEGIN Header_StartServoTask */
+/**
+* @brief Function implementing the ServoTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartServoTask */
+void StartServoTask(void const * argument)
+{
+  /* USER CODE BEGIN StartServoTask */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartServoTask */
 }
 
 /* Private application code --------------------------------------------------*/
