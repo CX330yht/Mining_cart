@@ -38,7 +38,9 @@ add_executable(${CMAKE_PROJECT_NAME}
         user/motor/pid.h
         user/motor/pid.c
         user/motor/motor_control.h
-        user/motor/motor_control.c)
+        user/motor/motor_control.c
+        user/servo/servo.h
+        user/servo/servo.c)
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE -fno-use-linker-plugin)
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -55,6 +57,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         user/motor/encoder.c
         user/motor/pid.c
         user/motor/motor_control.c
+        user/servo/servo.c
     # Add user sources here
 )
 
@@ -63,6 +66,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         Drivers/SEGGER_RTT/RTT
         Drivers/SEGGER_RTT/Config
         user/motor
+        user/servo
     # Add user defined include paths
 )
 

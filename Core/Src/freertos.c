@@ -27,6 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include "SEGGER_RTT.h"
 #include "motor_control.h"
+#include "servo.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -181,10 +182,8 @@ void StartServoTask(void const * argument)
 {
   /* USER CODE BEGIN StartServoTask */
   /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+  (void)argument;
+  Servo_Task();
   /* USER CODE END StartServoTask */
 }
 
