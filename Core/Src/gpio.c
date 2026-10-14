@@ -46,6 +46,7 @@ void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOI_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
@@ -54,16 +55,36 @@ void MX_GPIO_Init(void)
   __HAL_RCC_GPIOF_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOI, TB_BIN1_Pin|TB_BIN2_Pin|TB2_AIN2_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(TB2_AIN1_GPIO_Port, TB2_AIN1_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, TB_AIN2_Pin|TB_AIN1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(TB_STBY_GPIO_Port, TB_STBY_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, TB_STBY_Pin|TB2_BIN1_Pin|TB2_STBY_Pin|TB2_BIN2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pins : TB_BIN1_Pin TB_BIN2_Pin TB2_AIN2_Pin */
+  GPIO_InitStruct.Pin = TB_BIN1_Pin|TB_BIN2_Pin|TB2_AIN2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : TB2_AIN1_Pin */
+  GPIO_InitStruct.Pin = TB2_AIN1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(TB2_AIN1_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : TB_AIN2_Pin TB_AIN1_Pin */
   GPIO_InitStruct.Pin = TB_AIN2_Pin|TB_AIN1_Pin;
@@ -72,12 +93,12 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : TB_STBY_Pin */
-  GPIO_InitStruct.Pin = TB_STBY_Pin;
+  /*Configure GPIO pins : TB_STBY_Pin TB2_BIN1_Pin TB2_STBY_Pin TB2_BIN2_Pin */
+  GPIO_InitStruct.Pin = TB_STBY_Pin|TB2_BIN1_Pin|TB2_STBY_Pin|TB2_BIN2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(TB_STBY_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LED_RED_Pin */
   GPIO_InitStruct.Pin = LED_RED_Pin;
