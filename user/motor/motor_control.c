@@ -1,6 +1,8 @@
 #include "motor_control.h"
 #include "encoder.h"
 #include "pid.h"
+#include "mecanum.h"
+#include <stddef.h>
 #include "cmsis_os.h"
 #include "tim.h"
 #include <math.h>
@@ -13,6 +15,11 @@
 #define SPEED_RAMP_RPM_PER_S 100.0f
 #define SPEED_FILTER_TAU_S 0.05f
 #define TARGET_ZERO_RPM 0.001f
+#define CHASSIS_TEST_RUN_MS 2000U
+#define CHASSIS_TEST_PAUSE_MS 500U
+#define CHASSIS_TEST_STOP_RPM 5.0f
+#define CHASSIS_TEST_LINEAR_MPS 0.060f
+#define CHASSIS_TEST_TURN_RADPS 0.180f
 
 volatile int32_t g_wheel_count[TB6612_MOTOR_COUNT] = {0};
 volatile float g_wheel_rpm[TB6612_MOTOR_COUNT] = {0};
@@ -31,6 +38,13 @@ volatile uint32_t g_motor_mode = MOTOR_MODE_OPEN_LOOP;
 volatile float g_motor_duty[TB6612_MOTOR_COUNT] = {0};
 volatile MotorDebug_t g_motor_debug = {0};
 
+volatile float g_chassis_vx_mps = 0.0f;
+volatile float g_chassis_vy_mps = 0.0f;
+volatile float g_chassis_wz_radps = 0.0f;
+volatile float g_chassis_scale = 1.0f;
+volatile uint32_t g_chassis_test_cmd = CHASSIS_TEST_NONE;
+volatile uint32_t g_chassis_test_result = CHASSIS_TEST_IDLE;
+
 static const uint32_t s_channels[TB6612_MOTOR_COUNT] = {
     TIM_CHANNEL_1, TIM_CHANNEL_2, TIM_CHANNEL_3, TIM_CHANNEL_4
 };
@@ -39,7 +53,7 @@ static const uint32_t s_channels[TB6612_MOTOR_COUNT] = {
 static TIM_HandleTypeDef *const s_encoder_timers[TB6612_MOTOR_COUNT] = {
     &htim2, &htim4, &htim5, &htim8
 };
-static const int8_t s_encoder_direction[TB6612_MOTOR_COUNT] = {1, -1, -1, -1};
+static const int8_t s_encoder_direction[TB6612_MOTOR_COUNT] = {1, 1, -1, 1};
 
 static float RampTo(float current, float target, float max_step)
 {
@@ -48,11 +62,37 @@ static float RampTo(float current, float target, float max_step)
     return target;
 }
 
-static uint8_t ReadSpeedTargets(float targets[], uint32_t *mask)
+static uint8_t WheelsStopped(void)
+{
+    for (uint32_t i = 0U; i < TB6612_MOTOR_COUNT; ++i) {
+        float rpm = g_wheel_rpm_filtered[i];
+        if (!isfinite(rpm) || fabsf(rpm) > CHASSIS_TEST_STOP_RPM) return 0U;
+    }
+    return 1U;
+}
+
+static void SetChassisTestVelocity(uint32_t command)
+{
+    g_chassis_vx_mps = 0.0f;
+    g_chassis_vy_mps = 0.0f;
+    g_chassis_wz_radps = 0.0f;
+    switch (command) {
+    case CHASSIS_TEST_FORWARD: g_chassis_vx_mps = CHASSIS_TEST_LINEAR_MPS; break;
+    case CHASSIS_TEST_BACKWARD: g_chassis_vx_mps = -CHASSIS_TEST_LINEAR_MPS; break;
+    case CHASSIS_TEST_LEFT: g_chassis_vy_mps = CHASSIS_TEST_LINEAR_MPS; break;
+    case CHASSIS_TEST_RIGHT: g_chassis_vy_mps = -CHASSIS_TEST_LINEAR_MPS; break;
+    case CHASSIS_TEST_TURN_LEFT: g_chassis_wz_radps = CHASSIS_TEST_TURN_RADPS; break;
+    case CHASSIS_TEST_TURN_RIGHT: g_chassis_wz_radps = -CHASSIS_TEST_TURN_RADPS; break;
+    default: break;
+    }
+}
+
+static uint8_t ReadSpeedTargets(float targets[], uint32_t *mask,
+                                const float fixed_targets[])
 {
     uint32_t bits = 0U;
     for (uint32_t i = 0U; i < TB6612_MOTOR_COUNT; ++i) {
-        targets[i] = g_target_rpm[i];
+        targets[i] = fixed_targets != NULL ? fixed_targets[i] : g_target_rpm[i];
         if (!isfinite(targets[i]) || fabsf(targets[i]) > SPEED_LIMIT_RPM) {
             return 0U;
         }
@@ -76,6 +116,10 @@ static void StopRun(PID_t pid[], MotorStopReason_t reason)
     TB6612_StopAll();
     ClearControllers(pid);
     g_motor_enable = 0U;
+    g_chassis_test_cmd = CHASSIS_TEST_NONE;
+    g_chassis_vx_mps = 0.0f;
+    g_chassis_vy_mps = 0.0f;
+    g_chassis_wz_radps = 0.0f;
     for (uint32_t i = 0U; i < TB6612_MOTOR_COUNT; ++i) {
         g_target_rpm[i] = 0.0f;
         g_motor_duty[i] = 0.0f;
@@ -113,6 +157,9 @@ void MotorControl_Task(void)
     uint32_t speed_mask = 0U;
     uint8_t run_active = 0U;
     int8_t run_direction[TB6612_MOTOR_COUNT] = {0};
+    float chassis_targets[TB6612_MOTOR_COUNT] = {0};
+    uint8_t test_run = 0U;
+    uint32_t last_stop = last_wake - CHASSIS_TEST_PAUSE_MS;
 
     for (;;) {
         osDelayUntil(&last_wake, CONTROL_PERIOD_MS);
@@ -131,6 +178,37 @@ void MotorControl_Task(void)
             }
         }
 
+        uint8_t was_active = run_active != 0U || g_motor_enable == 1U;
+        uint32_t test_command = g_chassis_test_cmd;
+        if (test_command != CHASSIS_TEST_NONE) {
+            g_chassis_test_cmd = CHASSIS_TEST_NONE;
+            if (test_command == CHASSIS_TEST_STOP) {
+                StopRun(speed_pid, MOTOR_STOP_DISABLED);
+                run_active = 0U;
+                test_run = 0U;
+                last_stop = now;
+                g_chassis_test_result = CHASSIS_TEST_STOPPED;
+            } else if (test_command < CHASSIS_TEST_FORWARD ||
+                       test_command > CHASSIS_TEST_TURN_RIGHT) {
+                StopRun(speed_pid, MOTOR_STOP_INVALID);
+                run_active = 0U;
+                test_run = 0U;
+                last_stop = now;
+                g_chassis_test_result = CHASSIS_TEST_INVALID;
+            } else if (run_active != 0U || g_motor_enable != 0U) {
+                g_chassis_test_result = CHASSIS_TEST_BUSY;
+            } else if ((uint32_t)(now - last_stop) < CHASSIS_TEST_PAUSE_MS ||
+                       WheelsStopped() == 0U) {
+                g_chassis_test_result = CHASSIS_TEST_WAIT_STOP;
+            } else {
+                SetChassisTestVelocity(test_command);
+                g_motor_mode = MOTOR_MODE_CHASSIS;
+                g_motor_enable = 1U;
+                test_run = 1U;
+                g_chassis_test_result = CHASSIS_TEST_ACCEPTED;
+            }
+        }
+
         float applied_duty[TB6612_MOTOR_COUNT] = {0};
         if (g_motor_enable == 1U) {
             if (run_active == 0U) {
@@ -141,8 +219,26 @@ void MotorControl_Task(void)
                 float kd[TB6612_MOTOR_COUNT];
                 uint32_t requested_mask = 0U;
                 uint8_t valid = active_mode == MOTOR_MODE_OPEN_LOOP;
-                if (active_mode == MOTOR_MODE_SPEED) {
-                    valid = ReadSpeedTargets(targets, &requested_mask);
+                if (active_mode == MOTOR_MODE_SPEED ||
+                    active_mode == MOTOR_MODE_CHASSIS) {
+                    valid = 1U;
+                    g_chassis_scale = 1.0f;
+                    if (active_mode == MOTOR_MODE_CHASSIS) {
+                        float scale = 1.0f;
+                        valid = Mecanum_Calculate(g_chassis_vx_mps,
+                            g_chassis_vy_mps, g_chassis_wz_radps,
+                            SPEED_LIMIT_RPM, chassis_targets, &scale);
+                        if (valid != 0U) g_chassis_scale = scale;
+                    }
+                    if (valid != 0U) {
+                        valid = ReadSpeedTargets(targets, &requested_mask,
+                            active_mode == MOTOR_MODE_CHASSIS ? chassis_targets : NULL);
+                        if (active_mode == MOTOR_MODE_CHASSIS) {
+                            for (uint32_t i = 0U; i < TB6612_MOTOR_COUNT; ++i) {
+                                g_target_rpm[i] = targets[i];
+                            }
+                        }
+                    }
                     for (uint32_t i = 0U; i < TB6612_MOTOR_COUNT; ++i) {
                         kp[i] = g_speed_kp[i];
                         ki[i] = g_speed_ki[i];
@@ -153,12 +249,12 @@ void MotorControl_Task(void)
                 }
                 if (valid == 0U) {
                     StopRun(speed_pid, MOTOR_STOP_INVALID);
-                } else if (active_mode == MOTOR_MODE_SPEED && requested_mask == 0U) {
+                } else if (active_mode != MOTOR_MODE_OPEN_LOOP && requested_mask == 0U) {
                     StopRun(speed_pid, MOTOR_STOP_DISABLED);
                 } else {
                     ClearControllers(speed_pid);
                     for (uint32_t i = 0U; i < TB6612_MOTOR_COUNT; ++i) {
-                        if (active_mode == MOTOR_MODE_SPEED) {
+                        if (active_mode != MOTOR_MODE_OPEN_LOOP) {
                             PID_Init(&speed_pid[i], kp[i], ki[i], kd[i], TB6612_MAX_DUTY);
                         }
                         run_direction[i] = targets[i] >= 0.0f ? 1 : -1;
@@ -173,8 +269,9 @@ void MotorControl_Task(void)
             }
 
             if (run_active != 0U) {
-                uint32_t limit_ms = active_mode == MOTOR_MODE_SPEED ?
+                uint32_t limit_ms = active_mode != MOTOR_MODE_OPEN_LOOP ?
                                     SPEED_RUN_MS : OPEN_LOOP_RUN_MS;
+                if (test_run != 0U) limit_ms = CHASSIS_TEST_RUN_MS;
                 if ((uint32_t)(now - run_start) >= limit_ms) {
                     StopRun(speed_pid, MOTOR_STOP_TIMEOUT);
                     run_active = 0U;
@@ -186,7 +283,8 @@ void MotorControl_Task(void)
                     float targets[TB6612_MOTOR_COUNT];
                     uint32_t requested_mask = 0U;
                     MotorStopReason_t reason = MOTOR_STOP_NONE;
-                    if (!ReadSpeedTargets(targets, &requested_mask)) {
+                    if (!ReadSpeedTargets(targets, &requested_mask,
+                        active_mode == MOTOR_MODE_CHASSIS ? chassis_targets : NULL)) {
                         reason = MOTOR_STOP_INVALID;
                     } else if (requested_mask != speed_mask) {
                         /* Changing the selected motors requires a new enable. */
@@ -205,6 +303,12 @@ void MotorControl_Task(void)
                         run_active = 0U;
                     } else if (dt_s > 0.0f) {
                         float commands[TB6612_MOTOR_COUNT] = {0};
+                        if (active_mode == MOTOR_MODE_CHASSIS) {
+                            /* g_target_rpm is an observation in chassis mode. */
+                            for (uint32_t i = 0U; i < TB6612_MOTOR_COUNT; ++i) {
+                                g_target_rpm[i] = targets[i];
+                            }
+                        }
                         for (uint32_t i = 0U; i < TB6612_MOTOR_COUNT; ++i) {
                             if ((speed_mask & (1U << i)) == 0U) continue;
                             g_ramped_target_rpm[i] = RampTo(g_ramped_target_rpm[i],
@@ -247,6 +351,19 @@ void MotorControl_Task(void)
                 TB6612_StopAll();
                 ClearControllers(speed_pid);
             }
+        }
+
+        if (was_active != 0U && run_active == 0U && g_motor_enable == 0U) {
+            last_stop = now;
+        }
+        if (test_run != 0U && run_active == 0U && g_motor_enable == 0U) {
+            last_stop = now;
+            if (g_motor_debug.stop_reason == MOTOR_STOP_INVALID) {
+                g_chassis_test_result = CHASSIS_TEST_INVALID;
+            } else if (g_motor_debug.stop_reason == MOTOR_STOP_DISABLED) {
+                g_chassis_test_result = CHASSIS_TEST_STOPPED;
+            }
+            test_run = 0U;
         }
 
         for (uint32_t i = 0U; i < TB6612_MOTOR_COUNT; ++i) {

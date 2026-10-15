@@ -3,6 +3,8 @@
 #include <math.h>
 
 #define REVERSE_PAUSE_MS 500U
+/* Positive duty makes the mounted wheel roll forward. */
+static const int8_t s_motor_direction[TB6612_MOTOR_COUNT] = {1, -1, 1, -1};
 
 typedef struct {
     GPIO_TypeDef *in1_port;
@@ -133,7 +135,8 @@ float TB6612_SetDuty(uint32_t motor_index, float duty)
         return 0.0f;
     }
 
-    int8_t direction = (duty > 0.0f) ? 1 : -1;
+    int8_t logical_direction = (duty > 0.0f) ? 1 : -1;
+    int8_t direction = logical_direction * s_motor_direction[motor_index];
     if ((state->last_direction != 0) &&
         (direction != state->last_direction)) {
         StopChannel(motor_index);
@@ -153,5 +156,5 @@ float TB6612_SetDuty(uint32_t motor_index, float duty)
     }
     __HAL_TIM_SET_COMPARE(&htim1, pins->channel, compare);
     UpdateStandby(pins->board);
-    return ((float)compare / (float)period) * (float)direction;
+    return ((float)compare / (float)period) * (float)logical_direction;
 }

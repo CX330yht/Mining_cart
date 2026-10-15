@@ -42,7 +42,9 @@ add_executable(${CMAKE_PROJECT_NAME}
         user/servo/servo.h
         user/servo/servo.c
         user/motor/tb6612.h
-        user/motor/tb6612.c)
+        user/motor/tb6612.c
+        user/motor/mecanum.h
+        user/motor/mecanum.c)
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE -fno-use-linker-plugin)
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -61,6 +63,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         user/motor/motor_control.c
         user/motor/tb6612.c
         user/servo/servo.c
+        user/motor/mecanum.c
     # Add user sources here
 )
 

@@ -6,7 +6,8 @@
 
 typedef enum {
     MOTOR_MODE_OPEN_LOOP = 0,
-    MOTOR_MODE_SPEED = 1
+    MOTOR_MODE_SPEED = 1,
+    MOTOR_MODE_CHASSIS = 2
 } MotorMode_t;
 
 typedef enum {
@@ -42,6 +43,37 @@ extern volatile float g_pid_command[TB6612_MOTOR_COUNT];
 extern volatile float g_speed_kp[TB6612_MOTOR_COUNT];
 extern volatile float g_speed_ki[TB6612_MOTOR_COUNT];
 extern volatile float g_speed_kd[TB6612_MOTOR_COUNT];
+
+/* Short bench command: sampled once when mode=2 is enabled. */
+extern volatile float g_chassis_vx_mps;
+extern volatile float g_chassis_vy_mps;
+extern volatile float g_chassis_wz_radps;
+extern volatile float g_chassis_scale;
+
+typedef enum {
+    CHASSIS_TEST_NONE = 0,
+    CHASSIS_TEST_FORWARD = 1,
+    CHASSIS_TEST_BACKWARD = 2,
+    CHASSIS_TEST_LEFT = 3,
+    CHASSIS_TEST_RIGHT = 4,
+    CHASSIS_TEST_TURN_LEFT = 5,
+    CHASSIS_TEST_TURN_RIGHT = 6,
+    CHASSIS_TEST_STOP = 9
+} ChassisTestCommand_t;
+
+typedef enum {
+    CHASSIS_TEST_IDLE = 0,
+    CHASSIS_TEST_ACCEPTED = 1,
+    CHASSIS_TEST_BUSY = 2,
+    CHASSIS_TEST_WAIT_STOP = 3,
+    CHASSIS_TEST_INVALID = 4,
+    CHASSIS_TEST_STOPPED = 5
+} ChassisTestResult_t;
+
+/* One-shot mailbox: write 1..6 to start a 2-second action, 9 to stop. */
+/* A request is consumed immediately. Busy/not-stopped requests are not queued. */
+extern volatile uint32_t g_chassis_test_cmd;
+extern volatile uint32_t g_chassis_test_result;
 
 void MotorControl_Task(void);
 
