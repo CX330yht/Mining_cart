@@ -75,6 +75,18 @@ typedef enum {
 extern volatile uint32_t g_chassis_test_cmd;
 extern volatile uint32_t g_chassis_test_result;
 
+typedef struct {
+    uint32_t request_count;
+    uint32_t accepted_count;
+    uint32_t last_command;
+    uint32_t enable_before;
+    uint32_t active_before;
+    uint32_t pwm_mask_before;
+    uint32_t elapsed_since_stop_ms;
+} ChassisTestDebug_t;
+
+extern volatile ChassisTestDebug_t g_chassis_test_debug;
+
 void MotorControl_Task(void);
 
 #endif

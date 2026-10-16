@@ -44,6 +44,7 @@ volatile float g_chassis_wz_radps = 0.0f;
 volatile float g_chassis_scale = 1.0f;
 volatile uint32_t g_chassis_test_cmd = CHASSIS_TEST_NONE;
 volatile uint32_t g_chassis_test_result = CHASSIS_TEST_IDLE;
+volatile ChassisTestDebug_t g_chassis_test_debug = {0};
 
 static const uint32_t s_channels[TB6612_MOTOR_COUNT] = {
     TIM_CHANNEL_1, TIM_CHANNEL_2, TIM_CHANNEL_3, TIM_CHANNEL_4
@@ -69,6 +70,15 @@ static uint8_t WheelsStopped(void)
         if (!isfinite(rpm) || fabsf(rpm) > CHASSIS_TEST_STOP_RPM) return 0U;
     }
     return 1U;
+}
+
+static uint32_t ActivePwmMask(void)
+{
+    uint32_t mask = 0U;
+    for (uint32_t i = 0U; i < TB6612_MOTOR_COUNT; ++i) {
+        if (__HAL_TIM_GET_COMPARE(&htim1, s_channels[i]) != 0U) mask |= 1U << i;
+    }
+    return mask;
 }
 
 static void SetChassisTestVelocity(uint32_t command)
@@ -182,6 +192,13 @@ void MotorControl_Task(void)
         uint32_t test_command = g_chassis_test_cmd;
         if (test_command != CHASSIS_TEST_NONE) {
             g_chassis_test_cmd = CHASSIS_TEST_NONE;
+            uint32_t pwm_mask = ActivePwmMask();
+            g_chassis_test_debug.request_count++;
+            g_chassis_test_debug.last_command = test_command;
+            g_chassis_test_debug.enable_before = g_motor_enable;
+            g_chassis_test_debug.active_before = run_active;
+            g_chassis_test_debug.pwm_mask_before = pwm_mask;
+            g_chassis_test_debug.elapsed_since_stop_ms = now - last_stop;
             if (test_command == CHASSIS_TEST_STOP) {
                 StopRun(speed_pid, MOTOR_STOP_DISABLED);
                 run_active = 0U;
@@ -195,18 +212,21 @@ void MotorControl_Task(void)
                 test_run = 0U;
                 last_stop = now;
                 g_chassis_test_result = CHASSIS_TEST_INVALID;
-            } else if (run_active != 0U || g_motor_enable != 0U) {
+                       } else if (run_active != 0U ||
+                          g_motor_enable != 0U ||
+                          pwm_mask != 0U) {
                 g_chassis_test_result = CHASSIS_TEST_BUSY;
             } else if ((uint32_t)(now - last_stop) < CHASSIS_TEST_PAUSE_MS ||
                        WheelsStopped() == 0U) {
                 g_chassis_test_result = CHASSIS_TEST_WAIT_STOP;
-            } else {
-                SetChassisTestVelocity(test_command);
-                g_motor_mode = MOTOR_MODE_CHASSIS;
-                g_motor_enable = 1U;
-                test_run = 1U;
-                g_chassis_test_result = CHASSIS_TEST_ACCEPTED;
-            }
+                       } else {
+                           SetChassisTestVelocity(test_command);
+                           g_motor_mode = MOTOR_MODE_CHASSIS;
+                           g_motor_enable = 1U;
+                           test_run = 1U;
+                           g_chassis_test_result = CHASSIS_TEST_ACCEPTED;
+                           g_chassis_test_debug.accepted_count++;
+                       }
         }
 
         float applied_duty[TB6612_MOTOR_COUNT] = {0};
