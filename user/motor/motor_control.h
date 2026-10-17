@@ -73,6 +73,7 @@ typedef enum {
 /* One-shot mailbox: write 1..6 to start a 2-second action, 9 to stop. */
 /* A request is consumed immediately. Busy/not-stopped requests are not queued. */
 extern volatile uint32_t g_chassis_test_cmd;
+extern volatile uint32_t g_chassis_speed_percent;
 extern volatile uint32_t g_chassis_test_result;
 
 typedef struct {

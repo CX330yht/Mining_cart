@@ -11,15 +11,17 @@
 #define ENCODER_COUNTS_PER_REV 1560.0f
 #define OPEN_LOOP_RUN_MS 2000U
 #define SPEED_RUN_MS 5000U
-#define SPEED_LIMIT_RPM 60.0f
+#define SPEED_LIMIT_RPM 320.0f
 #define SPEED_RAMP_RPM_PER_S 100.0f
 #define SPEED_FILTER_TAU_S 0.05f
 #define TARGET_ZERO_RPM 0.001f
-#define CHASSIS_TEST_RUN_MS 2000U
+#define CHASSIS_TEST_RUN_MS 5000U
 #define CHASSIS_TEST_PAUSE_MS 500U
 #define CHASSIS_TEST_STOP_RPM 5.0f
-#define CHASSIS_TEST_LINEAR_MPS 0.060f
-#define CHASSIS_TEST_TURN_RADPS 0.180f
+#define CHASSIS_TEST_LINEAR_MPS \
+    (SPEED_LIMIT_RPM * 2.0f * 3.14159265358979323846f * 0.030f / 60.0f)
+#define CHASSIS_TEST_TURN_RADPS \
+    (CHASSIS_TEST_LINEAR_MPS / 0.32725f)
 
 volatile int32_t g_wheel_count[TB6612_MOTOR_COUNT] = {0};
 volatile float g_wheel_rpm[TB6612_MOTOR_COUNT] = {0};
@@ -43,6 +45,7 @@ volatile float g_chassis_vy_mps = 0.0f;
 volatile float g_chassis_wz_radps = 0.0f;
 volatile float g_chassis_scale = 1.0f;
 volatile uint32_t g_chassis_test_cmd = CHASSIS_TEST_NONE;
+volatile uint32_t g_chassis_speed_percent = 30U;
 volatile uint32_t g_chassis_test_result = CHASSIS_TEST_IDLE;
 volatile ChassisTestDebug_t g_chassis_test_debug = {0};
 
@@ -81,18 +84,22 @@ static uint32_t ActivePwmMask(void)
     return mask;
 }
 
-static void SetChassisTestVelocity(uint32_t command)
+static void SetChassisTestVelocity(uint32_t command, uint32_t speed_percent)
 {
+    float ratio = (float)speed_percent * 0.01f;
+    float linear = CHASSIS_TEST_LINEAR_MPS * ratio;
+    float angular = CHASSIS_TEST_TURN_RADPS * ratio;
+
     g_chassis_vx_mps = 0.0f;
     g_chassis_vy_mps = 0.0f;
     g_chassis_wz_radps = 0.0f;
     switch (command) {
-    case CHASSIS_TEST_FORWARD: g_chassis_vx_mps = CHASSIS_TEST_LINEAR_MPS; break;
-    case CHASSIS_TEST_BACKWARD: g_chassis_vx_mps = -CHASSIS_TEST_LINEAR_MPS; break;
-    case CHASSIS_TEST_LEFT: g_chassis_vy_mps = CHASSIS_TEST_LINEAR_MPS; break;
-    case CHASSIS_TEST_RIGHT: g_chassis_vy_mps = -CHASSIS_TEST_LINEAR_MPS; break;
-    case CHASSIS_TEST_TURN_LEFT: g_chassis_wz_radps = CHASSIS_TEST_TURN_RADPS; break;
-    case CHASSIS_TEST_TURN_RIGHT: g_chassis_wz_radps = -CHASSIS_TEST_TURN_RADPS; break;
+    case CHASSIS_TEST_FORWARD:    g_chassis_vx_mps = linear; break;
+    case CHASSIS_TEST_BACKWARD:   g_chassis_vx_mps = -linear; break;
+    case CHASSIS_TEST_LEFT:       g_chassis_vy_mps = linear; break;
+    case CHASSIS_TEST_RIGHT:      g_chassis_vy_mps = -linear; break;
+    case CHASSIS_TEST_TURN_LEFT:  g_chassis_wz_radps = angular; break;
+    case CHASSIS_TEST_TURN_RIGHT: g_chassis_wz_radps = -angular; break;
     default: break;
     }
 }
@@ -190,6 +197,7 @@ void MotorControl_Task(void)
 
         uint8_t was_active = run_active != 0U || g_motor_enable == 1U;
         uint32_t test_command = g_chassis_test_cmd;
+        uint32_t speed_percent = g_chassis_speed_percent;
         if (test_command != CHASSIS_TEST_NONE) {
             g_chassis_test_cmd = CHASSIS_TEST_NONE;
             uint32_t pwm_mask = ActivePwmMask();
@@ -206,7 +214,10 @@ void MotorControl_Task(void)
                 last_stop = now;
                 g_chassis_test_result = CHASSIS_TEST_STOPPED;
             } else if (test_command < CHASSIS_TEST_FORWARD ||
-                       test_command > CHASSIS_TEST_TURN_RIGHT) {
+                       test_command > CHASSIS_TEST_TURN_RIGHT ||
+                       (speed_percent != 30U &&
+                        speed_percent != 60U &&
+                        speed_percent != 100U)) {
                 StopRun(speed_pid, MOTOR_STOP_INVALID);
                 run_active = 0U;
                 test_run = 0U;
@@ -220,7 +231,7 @@ void MotorControl_Task(void)
                        WheelsStopped() == 0U) {
                 g_chassis_test_result = CHASSIS_TEST_WAIT_STOP;
                        } else {
-                           SetChassisTestVelocity(test_command);
+                           SetChassisTestVelocity(test_command, speed_percent);
                            g_motor_mode = MOTOR_MODE_CHASSIS;
                            g_motor_enable = 1U;
                            test_run = 1U;

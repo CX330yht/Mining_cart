@@ -4,7 +4,7 @@
 #include "main.h"
 
 #define TB6612_MOTOR_COUNT 4U
-#define TB6612_MAX_DUTY 0.30f
+#define TB6612_MAX_DUTY 1.00f
 
 HAL_StatusTypeDef TB6612_Init(void);
 void TB6612_StopAll(void);
