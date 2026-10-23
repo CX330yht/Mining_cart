@@ -57,26 +57,26 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define D2_IN4_Pin GPIO_PIN_0
-#define D2_IN4_GPIO_Port GPIOI
-#define D2_IN2_Pin GPIO_PIN_12
-#define D2_IN2_GPIO_Port GPIOH
-#define D1_IN4_Pin GPIO_PIN_15
-#define D1_IN4_GPIO_Port GPIOD
 #define D1_NSLEEP_Pin GPIO_PIN_2
 #define D1_NSLEEP_GPIO_Port GPIOC
 #define D1_NFAULT_Pin GPIO_PIN_3
 #define D1_NFAULT_GPIO_Port GPIOC
-#define D1_IN2_Pin GPIO_PIN_14
-#define D1_IN2_GPIO_Port GPIOD
 #define D2_NSLEEP_Pin GPIO_PIN_4
 #define D2_NSLEEP_GPIO_Port GPIOC
 #define D2_NFAULT_Pin GPIO_PIN_5
 #define D2_NFAULT_GPIO_Port GPIOC
-#define LED_RED_Pin GPIO_PIN_11
-#define LED_RED_GPIO_Port GPIOE
 #define LED_GREEN_Pin GPIO_PIN_14
 #define LED_GREEN_GPIO_Port GPIOF
+#define LED_RED_Pin GPIO_PIN_11
+#define LED_RED_GPIO_Port GPIOE
+#define D2_IN2_Pin GPIO_PIN_12
+#define D2_IN2_GPIO_Port GPIOH
+#define D1_IN2_Pin GPIO_PIN_14
+#define D1_IN2_GPIO_Port GPIOD
+#define D1_IN4_Pin GPIO_PIN_15
+#define D1_IN4_GPIO_Port GPIOD
+#define D2_IN4_Pin GPIO_PIN_0
+#define D2_IN4_GPIO_Port GPIOI
 
 /* USER CODE BEGIN Private defines */
 
