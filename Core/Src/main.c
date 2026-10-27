@@ -101,6 +101,7 @@ int main(void)
   MX_TIM8_Init();
   MX_SPI4_Init();
   MX_USART2_UART_Init();
+  MX_TIM13_Init();
   /* USER CODE BEGIN 2 */
   SEGGER_RTT_Init();
   SEGGER_RTT_SetFlagsUpBuffer(0, SEGGER_RTT_MODE_NO_BLOCK_SKIP);

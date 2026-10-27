@@ -59,10 +59,22 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define NRF_CSN_Pin GPIO_PIN_4
 #define NRF_CSN_GPIO_Port GPIOE
+#define ARM_LIMIT_MIN_Pin GPIO_PIN_7
+#define ARM_LIMIT_MIN_GPIO_Port GPIOI
+#define ARM_LIMIT_MAX_Pin GPIO_PIN_2
+#define ARM_LIMIT_MAX_GPIO_Port GPIOI
+#define ARM_NFAULT_Pin GPIO_PIN_9
+#define ARM_NFAULT_GPIO_Port GPIOI
+#define ARM_ENC_A_Pin GPIO_PIN_0
+#define ARM_ENC_A_GPIO_Port GPIOF
+#define ARM_ENC_A_EXTI_IRQn EXTI0_IRQn
 #define D2_IN4_Pin GPIO_PIN_0
 #define D2_IN4_GPIO_Port GPIOI
 #define D2_IN2_Pin GPIO_PIN_12
 #define D2_IN2_GPIO_Port GPIOH
+#define ARM_ENC_B_Pin GPIO_PIN_10
+#define ARM_ENC_B_GPIO_Port GPIOF
+#define ARM_ENC_B_EXTI_IRQn EXTI15_10_IRQn
 #define D1_IN4_Pin GPIO_PIN_15
 #define D1_IN4_GPIO_Port GPIOD
 #define NRF_CE_Pin GPIO_PIN_0
@@ -75,8 +87,12 @@ void Error_Handler(void);
 #define D1_NFAULT_GPIO_Port GPIOC
 #define D1_IN2_Pin GPIO_PIN_14
 #define D1_IN2_GPIO_Port GPIOD
+#define ARM_DIR_Pin GPIO_PIN_4
+#define ARM_DIR_GPIO_Port GPIOA
 #define D2_NSLEEP_Pin GPIO_PIN_4
 #define D2_NSLEEP_GPIO_Port GPIOC
+#define ARM_NSLEEP_Pin GPIO_PIN_5
+#define ARM_NSLEEP_GPIO_Port GPIOA
 #define D2_NFAULT_Pin GPIO_PIN_5
 #define D2_NFAULT_GPIO_Port GPIOC
 #define LED_RED_Pin GPIO_PIN_11
