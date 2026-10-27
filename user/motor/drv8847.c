@@ -30,8 +30,8 @@ typedef struct {
 /* Index 0..3 = left-front, right-front, left-rear, right-rear. */
 static const MotorPins_t s_pins[DRV8847_MOTOR_COUNT] = {
     {D1_IN2_GPIO_Port, D1_IN2_Pin, TIM_CHANNEL_1, 0U},
-    {D1_IN4_GPIO_Port, D1_IN4_Pin, TIM_CHANNEL_2, 0U},
     {D2_IN2_GPIO_Port, D2_IN2_Pin, TIM_CHANNEL_3, 1U},
+    {D1_IN4_GPIO_Port, D1_IN4_Pin, TIM_CHANNEL_2, 0U},
     {D2_IN4_GPIO_Port, D2_IN4_Pin, TIM_CHANNEL_4, 1U}
 };
 
@@ -45,7 +45,7 @@ static const BoardPins_t s_boards[DRV8847_BOARD_COUNT] = {
 /* Existing mounted-wheel calibration, assuming motor M+ goes to connector pin1. */
 static const int8_t s_motor_direction[DRV8847_MOTOR_COUNT] = {1, -1, 1, -1};
 /* CN1 pin1/6=OUT1/OUT2; CN2 pin1/6=OUT4/OUT3. */
-static const int8_t s_port_direction[DRV8847_MOTOR_COUNT] = {1, -1, 1, -1};
+static const int8_t s_port_direction[DRV8847_MOTOR_COUNT] = {1, 1, 1, 1};
 
 static MotorState_t s_state[DRV8847_MOTOR_COUNT];
 static uint32_t s_wake_tick[DRV8847_BOARD_COUNT];
@@ -211,8 +211,11 @@ HAL_StatusTypeDef DRV8847_Apply(
         if ((requested_boards & bit) == 0U) {
             SleepBoard(board, now);
         } else if ((g_drv8847_debug.awake_mask & bit) == 0U) {
-            CoastChannel(board * 2U, now);
-            CoastChannel(board * 2U + 1U, now);
+            for (uint32_t motor = 0U; motor < DRV8847_MOTOR_COUNT; ++motor) {
+                if (s_pins[motor].board == board) {
+                    CoastChannel(motor, now);
+                }
+            }
             if ((uint32_t)(now - s_sleep_tick[board]) < SLEEP_MIN_MS) continue;
             s_wake_tick[board] = now;
             HAL_GPIO_WritePin(s_boards[board].sleep_port,

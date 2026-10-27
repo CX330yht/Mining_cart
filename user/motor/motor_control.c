@@ -51,14 +51,17 @@ volatile uint32_t g_chassis_test_result = CHASSIS_TEST_IDLE;
 volatile ChassisTestDebug_t g_chassis_test_debug = {0};
 
 static const uint32_t s_channels[DRV8847_MOTOR_COUNT] = {
-    TIM_CHANNEL_1, TIM_CHANNEL_2, TIM_CHANNEL_3, TIM_CHANNEL_4
+    TIM_CHANNEL_1, TIM_CHANNEL_3, TIM_CHANNEL_2, TIM_CHANNEL_4
 };
 
 /* Index 0/1/2/3 = M1/M2/M3/M4. */
 static TIM_HandleTypeDef *const s_encoder_timers[DRV8847_MOTOR_COUNT] = {
-    &htim2, &htim4, &htim5, &htim8
+    &htim4, &htim8, &htim2, &htim5
 };
-static const int8_t s_encoder_direction[DRV8847_MOTOR_COUNT] = {1, 1, -1, 1};
+
+static const int8_t s_encoder_direction[DRV8847_MOTOR_COUNT] = {
+    1,-1,1,-1
+};
 
 static float RampTo(float current, float target, float max_step)
 {
