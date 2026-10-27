@@ -34,7 +34,9 @@ enable_language(C ASM)
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME}
         user/nrf24/nrf24.h
-        user/nrf24/nrf24.c)
+        user/nrf24/nrf24.c
+        user/arm/arm_control.h
+        user/arm/arm_control.c)
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE -fno-use-linker-plugin)
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -55,6 +57,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         user/motor/mecanum.c
         user/servo/servo.c
         user/nrf24/nrf24.c
+        user/arm/arm_control.c
 
     # Add user sources here
 )
@@ -66,6 +69,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         user/motor
         user/servo
         user/nrf24
+        user/arm
     # Add user defined include paths
 )
 

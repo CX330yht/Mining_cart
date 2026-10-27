@@ -24,10 +24,12 @@
 #include "usart.h"
 #include "gpio.h"
 
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "SEGGER_RTT.h"
 #include "nrf24.h"
+#include "arm_control.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -178,7 +180,12 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  if (GPIO_Pin == ARM_ENC_A_Pin || GPIO_Pin == ARM_ENC_B_Pin) {
+    Arm_EncoderIRQ();
+  }
+}
 /* USER CODE END 4 */
 
 /**

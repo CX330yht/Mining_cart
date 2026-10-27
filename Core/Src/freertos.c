@@ -28,6 +28,7 @@
 #include "SEGGER_RTT.h"
 #include "motor_control.h"
 #include "servo.h"
+#include "arm_control.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -52,6 +53,7 @@
 osThreadId StatusTaskHandle;
 osThreadId MotorTaskHandle;
 osThreadId ServoTaskHandle;
+osThreadId ArmTaskHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -61,6 +63,7 @@ osThreadId ServoTaskHandle;
 void StartStatusTask(void const * argument);
 void StartMotorTask(void const * argument);
 void StartServoTask(void const * argument);
+void StartArmTask(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -118,6 +121,10 @@ void MX_FREERTOS_Init(void) {
   /* definition and creation of ServoTask */
   osThreadDef(ServoTask, StartServoTask, osPriorityNormal, 0, 256);
   ServoTaskHandle = osThreadCreate(osThread(ServoTask), NULL);
+
+  /* definition and creation of ArmTask */
+  osThreadDef(ArmTask, StartArmTask, osPriorityAboveNormal, 0, 512);
+  ArmTaskHandle = osThreadCreate(osThread(ArmTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -185,6 +192,22 @@ void StartServoTask(void const * argument)
   (void)argument;
   Servo_Task();
   /* USER CODE END StartServoTask */
+}
+
+/* USER CODE BEGIN Header_StartArmTask */
+/**
+* @brief Function implementing the ArmTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartArmTask */
+void StartArmTask(void const * argument)
+{
+  /* USER CODE BEGIN StartArmTask */
+  /* Infinite loop */
+  (void)argument;
+  ArmControl_Task();
+  /* USER CODE END StartArmTask */
 }
 
 /* Private application code --------------------------------------------------*/
