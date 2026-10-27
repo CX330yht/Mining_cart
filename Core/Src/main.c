@@ -27,6 +27,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "SEGGER_RTT.h"
+#include "nrf24.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -104,6 +105,10 @@ int main(void)
   SEGGER_RTT_Init();
   SEGGER_RTT_SetFlagsUpBuffer(0, SEGGER_RTT_MODE_NO_BLOCK_SKIP);
   SEGGER_RTT_WriteString(0, "Mining_cart boot OK\r\n");
+  HAL_StatusTypeDef nrf_status = NRF24_Init();
+  SEGGER_RTT_printf(0, "NRF probe=%u present=%u\r\n",
+                 (unsigned)nrf_status,
+                 (unsigned)g_nrf24_debug.present);
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in cmsis_os2.c) */
