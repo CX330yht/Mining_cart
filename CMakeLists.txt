@@ -32,18 +32,14 @@ message("Build type: " ${CMAKE_BUILD_TYPE})
 enable_language(C ASM)
 
 # Create an executable object type
-add_executable(${CMAKE_PROJECT_NAME}
-        user/nrf24/nrf24.h
-        user/nrf24/nrf24.c
-        user/arm/arm_control.h
-        user/arm/arm_control.c)
+add_executable(${CMAKE_PROJECT_NAME})
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE -fno-use-linker-plugin)
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined library search paths
+        # Add user defined library search paths
 )
 
 # Add sources to executable
@@ -53,13 +49,13 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         user/motor/encoder.c
         user/motor/pid.c
         user/motor/motor_control.c
-        user/motor/drv8847.c
+        user/motor/tb6612.c
         user/motor/mecanum.c
         user/servo/servo.c
         user/nrf24/nrf24.c
         user/arm/arm_control.c
 
-    # Add user sources here
+        # Add user sources here
 )
 
 # Add include paths
@@ -70,13 +66,13 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         user/servo
         user/nrf24
         user/arm
-    # Add user defined include paths
+        # Add user defined include paths
 )
 
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
         RTT_USE_ASM=0
-    # Add user defined symbols
+        # Add user defined symbols
 )
 
 # Remove wrong libob.a library dependency when using cpp files
@@ -84,7 +80,7 @@ list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}
-    stm32cubemx
+        stm32cubemx
 
-    # Add user defined libraries
+        # Add user defined libraries
 )

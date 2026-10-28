@@ -16,7 +16,6 @@ volatile uint32_t g_arm_bench_mode = 0U;
 volatile uint32_t g_arm_calibration_ok = 0U;
 volatile uint32_t g_arm_limits_verified = 0U;
 volatile uint32_t g_arm_zero_request = 0U;
-volatile uint32_t g_arm_fault_clear = 0U;
 volatile int32_t g_arm_encoder_direction = 1;
 volatile int32_t g_arm_motor_direction = 1;
 /* Nominal gearbox-output estimate only; set calibration_ok after measuring. */
@@ -63,10 +62,12 @@ void Arm_EncoderIRQ(void)
     s_previous_ab = next;
 }
 
-static void Coast(uint32_t now)
+static void BrakeChannel(uint32_t now)
 {
     __HAL_TIM_SET_COMPARE(&htim13, TIM_CHANNEL_1, 0U);
-    HAL_GPIO_WritePin(ARM_DIR_GPIO_Port, ARM_DIR_Pin, GPIO_PIN_RESET);
+    /* PWM=0 and IN1=IN2=1 explicitly short-brakes while STBY is high. */
+    HAL_GPIO_WritePin(ARM_IN1_GPIO_Port, ARM_IN1_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(ARM_IN2_GPIO_Port, ARM_IN2_Pin, GPIO_PIN_SET);
     if (s_output_running) {
         s_stop_tick = now;
         s_output_running = 0U;
@@ -75,16 +76,16 @@ static void Coast(uint32_t now)
     g_arm_debug.pwm_compare = 0U;
 }
 
-static void SleepDrive(uint32_t now)
+static void StandbyDrive(uint32_t now)
 {
-    HAL_GPIO_WritePin(ARM_NSLEEP_GPIO_Port, ARM_NSLEEP_Pin, GPIO_PIN_RESET);
-    Coast(now);
+    HAL_GPIO_WritePin(ARM_STBY_GPIO_Port, ARM_STBY_Pin, GPIO_PIN_RESET);
+    BrakeChannel(now);
     s_last_direction = 0;
 }
 
 static void Abort(uint32_t reason, uint32_t now, PID_t *speed)
 {
-    SleepDrive(now);
+    StandbyDrive(now);
     PID_Reset(speed);
     g_arm_enable = 0U;
     g_arm_open_duty = 0.0f;
@@ -100,19 +101,21 @@ static float Apply(float duty, uint32_t now)
     uint32_t period = __HAL_TIM_GET_AUTORELOAD(&htim13) + 1U;
     uint32_t magnitude = (uint32_t)(fabsf(duty) * (float)period + 0.5f);
     if (magnitude == 0U) {
-        Coast(now);
+        BrakeChannel(now);
         return 0.0f;
     }
     if (magnitude > period) magnitude = period;
     int8_t logical = duty >= 0.0f ? 1 : -1;
     int8_t physical = (int8_t)(logical * g_arm_motor_direction);
     if (s_last_direction && physical != s_last_direction) {
-        Coast(now);
+        BrakeChannel(now);
         if ((uint32_t)(now - s_stop_tick) < ARM_REVERSE_MS) return 0.0f;
     }
-    HAL_GPIO_WritePin(ARM_DIR_GPIO_Port, ARM_DIR_Pin,
+    HAL_GPIO_WritePin(ARM_IN1_GPIO_Port, ARM_IN1_Pin,
+                      physical > 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(ARM_IN2_GPIO_Port, ARM_IN2_Pin,
                       physical > 0 ? GPIO_PIN_RESET : GPIO_PIN_SET);
-    uint32_t compare = physical > 0 ? magnitude : period - magnitude;
+    uint32_t compare = magnitude;
     __HAL_TIM_SET_COMPARE(&htim13, TIM_CHANNEL_1, compare);
     s_output_running = 1U;
     s_last_direction = physical;
@@ -153,7 +156,7 @@ void ArmControl_Task(void)
     g_arm_debug = (ArmDebug_t){0};
     s_previous_ab = ReadAB();
     uint32_t now = osKernelSysTick();
-    SleepDrive(now);
+    StandbyDrive(now);
     __HAL_TIM_DISABLE_OCxPRELOAD(&htim13, TIM_CHANNEL_1);
     HAL_StatusTypeDef status =
         HAL_TIM_PWM_Start(&htim13, TIM_CHANNEL_1);
@@ -184,13 +187,6 @@ void ArmControl_Task(void)
             filtered_rpm = 0.0f;
             PID_Reset(&speed);
         }
-        if (g_arm_fault_clear && !g_arm_enable) {
-            g_arm_fault_clear = 0U;
-            if (HAL_GPIO_ReadPin(ARM_NFAULT_GPIO_Port,
-                                ARM_NFAULT_Pin) == GPIO_PIN_SET) {
-                g_arm_debug.fault_latched = 0U;
-            }
-        }
         if (!ConfigValid() || !elapsed || elapsed > 100U) {
             Abort(ARM_STOP_CONFIG, now, &speed);
             continue;
@@ -208,7 +204,7 @@ void ArmControl_Task(void)
 
         if (!g_arm_enable) {
             if (s_active) Abort(ARM_STOP_DISABLED, now, &speed);
-            SleepDrive(now);
+            StandbyDrive(now);
             PID_Reset(&speed);
             s_active = 0U;
             g_arm_debug.target_rpm = 0.0f;
@@ -226,10 +222,6 @@ void ArmControl_Task(void)
             Abort(ARM_STOP_NO_ZERO, now, &speed);
             continue;
         }
-        if (g_arm_debug.fault_latched) {
-            Abort(ARM_STOP_FAULT, now, &speed);
-            continue;
-        }
         if (HAL_GPIO_ReadPin(ARM_LIMIT_MIN_GPIO_Port,
                             ARM_LIMIT_MIN_Pin) == GPIO_PIN_RESET ||
             HAL_GPIO_ReadPin(ARM_LIMIT_MAX_GPIO_Port,
@@ -244,7 +236,7 @@ void ArmControl_Task(void)
             s_active_mode = g_arm_mode;
             s_run_start = s_wake_start = last_movement = now;
             g_arm_debug.stop_reason = ARM_STOP_NONE;
-            HAL_GPIO_WritePin(ARM_NSLEEP_GPIO_Port, ARM_NSLEEP_Pin,
+            HAL_GPIO_WritePin(ARM_STBY_GPIO_Port, ARM_STBY_Pin,
                               GPIO_PIN_SET);
         }
         if (g_arm_bench_mode &&
@@ -253,13 +245,6 @@ void ArmControl_Task(void)
             continue;
         }
         if ((uint32_t)(now - s_wake_start) < ARM_WAKE_MS) continue;
-        if (HAL_GPIO_ReadPin(ARM_NFAULT_GPIO_Port,
-                            ARM_NFAULT_Pin) == GPIO_PIN_RESET) {
-            g_arm_debug.fault_latched = 1U;
-            Abort(ARM_STOP_FAULT, now, &speed);
-            continue;
-        }
-
         float target_rpm = g_arm_mode == ARM_MODE_POSITION ?
             g_arm_pos_kp * (g_arm_target_deg - angle) :
             g_arm_speed_target_rpm;

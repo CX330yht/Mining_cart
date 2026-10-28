@@ -2,7 +2,7 @@
 #define MOTOR_CONTROL_H
 
 #include <stdint.h>
-#include "drv8847.h"
+#include "tb6612.h"
 
 typedef enum {
     MOTOR_MODE_OPEN_LOOP = 0,
@@ -14,37 +14,35 @@ typedef enum {
     MOTOR_STOP_NONE = 0,
     MOTOR_STOP_DISABLED = 1,
     MOTOR_STOP_TIMEOUT = 2,
-    MOTOR_STOP_INVALID = 3,
-    MOTOR_STOP_DRIVER_FAULT = 4
+    MOTOR_STOP_INVALID = 3
 } MotorStopReason_t;
 
 typedef struct {
     uint32_t ready;
     uint32_t start_status;
-    uint32_t encoder_start_status[DRV8847_MOTOR_COUNT];
+    uint32_t encoder_start_status[TB6612_MOTOR_COUNT];
     uint32_t update_count;
-    uint32_t pwm_compare[DRV8847_MOTOR_COUNT];
-    float applied_duty[DRV8847_MOTOR_COUNT];
+    uint32_t pwm_compare[TB6612_MOTOR_COUNT];
+    float applied_duty[TB6612_MOTOR_COUNT];
     uint32_t active_mode;
     uint32_t stop_reason;
     uint32_t speed_mask;
 } MotorDebug_t;
 
 extern volatile uint32_t g_motor_enable;
-extern volatile uint32_t g_motor_fault_clear;
 extern volatile uint32_t g_motor_mode;
-extern volatile float g_motor_duty[DRV8847_MOTOR_COUNT];
+extern volatile float g_motor_duty[TB6612_MOTOR_COUNT];
 extern volatile MotorDebug_t g_motor_debug;
 
-extern volatile int32_t g_wheel_count[DRV8847_MOTOR_COUNT];
-extern volatile float g_wheel_rpm[DRV8847_MOTOR_COUNT];
-extern volatile float g_wheel_rpm_filtered[DRV8847_MOTOR_COUNT];
-extern volatile float g_target_rpm[DRV8847_MOTOR_COUNT];
-extern volatile float g_ramped_target_rpm[DRV8847_MOTOR_COUNT];
-extern volatile float g_pid_command[DRV8847_MOTOR_COUNT];
-extern volatile float g_speed_kp[DRV8847_MOTOR_COUNT];
-extern volatile float g_speed_ki[DRV8847_MOTOR_COUNT];
-extern volatile float g_speed_kd[DRV8847_MOTOR_COUNT];
+extern volatile int32_t g_wheel_count[TB6612_MOTOR_COUNT];
+extern volatile float g_wheel_rpm[TB6612_MOTOR_COUNT];
+extern volatile float g_wheel_rpm_filtered[TB6612_MOTOR_COUNT];
+extern volatile float g_target_rpm[TB6612_MOTOR_COUNT];
+extern volatile float g_ramped_target_rpm[TB6612_MOTOR_COUNT];
+extern volatile float g_pid_command[TB6612_MOTOR_COUNT];
+extern volatile float g_speed_kp[TB6612_MOTOR_COUNT];
+extern volatile float g_speed_ki[TB6612_MOTOR_COUNT];
+extern volatile float g_speed_kd[TB6612_MOTOR_COUNT];
 
 /* Short bench command: sampled once when mode=2 is enabled. */
 extern volatile float g_chassis_vx_mps;
@@ -69,8 +67,7 @@ typedef enum {
     CHASSIS_TEST_BUSY = 2,
     CHASSIS_TEST_WAIT_STOP = 3,
     CHASSIS_TEST_INVALID = 4,
-    CHASSIS_TEST_STOPPED = 5,
-    CHASSIS_TEST_DRIVER_FAULT = 6
+    CHASSIS_TEST_STOPPED = 5
 } ChassisTestResult_t;
 
 /* One-shot mailbox: write 1..6 to start a 5-second action, 9 to stop. */

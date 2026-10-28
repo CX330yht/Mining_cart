@@ -11,7 +11,6 @@ typedef struct {
     int32_t encoder_count;
     uint32_t invalid_edges;
     uint32_t zero_valid;
-    uint32_t fault_latched;
     uint32_t stop_reason;
     uint32_t pwm_compare;
     float angle_deg;
@@ -21,9 +20,10 @@ typedef struct {
 } ArmDebug_t;
 
 enum {
-    ARM_STOP_NONE = 0, ARM_STOP_DISABLED, ARM_STOP_CONFIG,
-    ARM_STOP_NO_ZERO, ARM_STOP_LIMIT, ARM_STOP_FAULT,
-    ARM_STOP_TIMEOUT, ARM_STOP_STALL
+    ARM_STOP_NONE = 0, ARM_STOP_DISABLED = 1, ARM_STOP_CONFIG = 2,
+    ARM_STOP_NO_ZERO = 3, ARM_STOP_LIMIT = 4,
+    /* Value 5 is unused: TB6612 has no external nFAULT output. */
+    ARM_STOP_TIMEOUT = 6, ARM_STOP_STALL = 7
 };
 
 enum { ARM_MODE_OPEN = 0, ARM_MODE_SPEED = 1, ARM_MODE_POSITION = 2 };
@@ -35,7 +35,6 @@ extern volatile uint32_t g_arm_bench_mode;
 extern volatile uint32_t g_arm_calibration_ok;
 extern volatile uint32_t g_arm_limits_verified;
 extern volatile uint32_t g_arm_zero_request;
-extern volatile uint32_t g_arm_fault_clear;
 extern volatile int32_t g_arm_encoder_direction;
 extern volatile int32_t g_arm_motor_direction;
 extern volatile float g_arm_counts_per_joint_rev;
