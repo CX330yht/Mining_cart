@@ -29,6 +29,7 @@
 #include "motor_control.h"
 #include "servo.h"
 #include "arm_control.h"
+#include "wireless.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -57,6 +58,7 @@ osThreadId ArmTaskHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
+static void StartWirelessTask(void const *argument);
 
 /* USER CODE END FunctionPrototypes */
 
@@ -115,7 +117,7 @@ void MX_FREERTOS_Init(void) {
   StatusTaskHandle = osThreadCreate(osThread(StatusTask), NULL);
 
   /* definition and creation of MotorTask */
-  osThreadDef(MotorTask, StartMotorTask, osPriorityHigh, 0, 256);
+  osThreadDef(MotorTask, StartMotorTask, osPriorityHigh, 0, 512);
   MotorTaskHandle = osThreadCreate(osThread(MotorTask), NULL);
 
   /* definition and creation of ServoTask */
@@ -127,6 +129,8 @@ void MX_FREERTOS_Init(void) {
   ArmTaskHandle = osThreadCreate(osThread(ArmTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
+  osThreadDef(WirelessTask, StartWirelessTask, osPriorityAboveNormal, 0, 512);
+  if (osThreadCreate(osThread(WirelessTask), NULL) == NULL) Error_Handler();
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
@@ -212,5 +216,10 @@ void StartArmTask(void const * argument)
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
+static void StartWirelessTask(void const *argument)
+{
+    (void)argument;
+    Wireless_Task();
+}
 
 /* USER CODE END Application */

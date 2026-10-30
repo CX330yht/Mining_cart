@@ -32,9 +32,7 @@ message("Build type: " ${CMAKE_BUILD_TYPE})
 enable_language(C ASM)
 
 # Create an executable object type
-add_executable(${CMAKE_PROJECT_NAME}
-        user/servo/servo_soft_pwm.h
-        user/servo/servo_soft_pwm.c)
+add_executable(${CMAKE_PROJECT_NAME})
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE -fno-use-linker-plugin)
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -46,6 +44,8 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+        user/wireless/control_link.c
+        user/wireless/wireless.c
         Drivers/SEGGER_RTT/RTT/SEGGER_RTT.c
         Drivers/SEGGER_RTT/RTT/SEGGER_RTT_printf.c
         user/motor/encoder.c
@@ -63,6 +63,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+        user/wireless
         Drivers/SEGGER_RTT/RTT
         Drivers/SEGGER_RTT/Config
         user/motor

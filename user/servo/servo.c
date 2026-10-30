@@ -1,5 +1,6 @@
 #include "servo.h"
 #include "servo_soft_pwm.h"
+#include "wireless.h"
 #include <stddef.h>
 #include "tim.h"
 #include "cmsis_os.h"
@@ -138,6 +139,13 @@ void Servo_Task(void)
         uint32_t now = osKernelSysTick();
         uint32_t elapsed_ms = now - last_sample;
         last_sample = now;
+        WirelessCommand_t cmd;
+        Wireless_GetCommand(&cmd);
+        g_servo_hold = cmd.enabled ? 0U : 1U;
+        if (cmd.enabled) {
+            for (uint32_t i=0; i<SERVO_COUNT; i++)
+                g_servo_target_deg[i] = cmd.servo_deg[i];
+        }
         Servo_Update((float)elapsed_ms * 0.001f);
     }
 }
