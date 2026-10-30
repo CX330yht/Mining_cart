@@ -17,16 +17,35 @@ typedef struct {
     float rpm;
     float target_rpm;
     float applied_duty;
+    /* Latched until next enable: readable after the short bench pulse ends. */
+    uint32_t bench_elapsed_ms;
+    float bench_start_angle_deg;
+    float bench_travel_deg;
+    float bench_peak_duty;
+    uint32_t bench_peak_pwm_compare;
+    float position_target_deg;
+    float position_error_deg;
+    uint32_t position_settle_ms;
+    float bench_path_min_deg;
+    float bench_path_max_deg;
+    uint32_t limit_reason_mask;
 } ArmDebug_t;
 
 enum {
     ARM_STOP_NONE = 0, ARM_STOP_DISABLED = 1, ARM_STOP_CONFIG = 2,
     ARM_STOP_NO_ZERO = 3, ARM_STOP_LIMIT = 4,
     /* Value 5 is unused: TB6612 has no external nFAULT output. */
-    ARM_STOP_TIMEOUT = 6, ARM_STOP_STALL = 7
+    ARM_STOP_TIMEOUT = 6, ARM_STOP_STALL = 7, ARM_STOP_BENCH_TRAVEL = 8,
+    ARM_STOP_POSITION_REACHED = 9
 };
 
 enum { ARM_MODE_OPEN = 0, ARM_MODE_SPEED = 1, ARM_MODE_POSITION = 2 };
+
+enum {
+    ARM_LIMIT_DETAIL_MIN_INPUT = 1U, ARM_LIMIT_DETAIL_MAX_INPUT = 2U,
+    ARM_LIMIT_DETAIL_ANGLE_WINDOW = 4U, ARM_LIMIT_DETAIL_START_MARGIN = 8U,
+    ARM_LIMIT_DETAIL_TARGET_MARGIN = 16U
+};
 
 extern volatile uint32_t g_arm_mode;
 extern volatile float g_arm_open_duty, g_arm_speed_target_rpm;

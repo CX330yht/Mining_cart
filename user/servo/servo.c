@@ -27,7 +27,7 @@ static const ServoChannel_t s_channels[SERVO_COUNT] = {
 static const float s_initial_deg[SERVO_COUNT] = {90.0f, 0.0f, 0.0f, 0.0f};
 /* Assembly command limits: A pitch, B rotation, C1/C2 grips. */
 static const float s_min_deg[SERVO_COUNT] = {30.0f, 0.0f, 0.0f, 0.0f};
-static const float s_max_deg[SERVO_COUNT] = {150.0f, 180.0f, 70.0f, 70.0f};
+static const float s_max_deg[SERVO_COUNT] = {150.0f, 175.0f, 70.0f, 70.0f};
 
 volatile float g_servo_target_deg[SERVO_COUNT] = {90.0f, 0.0f, 0.0f, 0.0f};
 volatile uint8_t g_servo_hold = 0U;
