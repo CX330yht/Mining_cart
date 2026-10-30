@@ -57,12 +57,12 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define TB2_BIN2_Pin GPIO_PIN_3
-#define TB2_BIN2_GPIO_Port GPIOB
 #define NRF_CSN_Pin GPIO_PIN_4
 #define NRF_CSN_GPIO_Port GPIOE
 #define ARM_LIMIT_MIN_Pin GPIO_PIN_7
 #define ARM_LIMIT_MIN_GPIO_Port GPIOI
+#define SERVO_B_PWM_Pin GPIO_PIN_5
+#define SERVO_B_PWM_GPIO_Port GPIOD
 #define ARM_LIMIT_MAX_Pin GPIO_PIN_2
 #define ARM_LIMIT_MAX_GPIO_Port GPIOI
 #define ARM_IN2_Pin GPIO_PIN_9
@@ -83,8 +83,8 @@ void Error_Handler(void);
 #define TB1_BIN1_GPIO_Port GPIOD
 #define NRF_CE_Pin GPIO_PIN_0
 #define NRF_CE_GPIO_Port GPIOC
-#define NRF_IRQ_Pin GPIO_PIN_1
-#define NRF_IRQ_GPIO_Port GPIOC
+#define TB2_BIN2_Pin GPIO_PIN_1
+#define TB2_BIN2_GPIO_Port GPIOC
 #define TB1_STBY_Pin GPIO_PIN_2
 #define TB1_STBY_GPIO_Port GPIOC
 #define TB1_AIN2_Pin GPIO_PIN_3
@@ -95,6 +95,8 @@ void Error_Handler(void);
 #define ARM_IN1_GPIO_Port GPIOA
 #define TB2_STBY_Pin GPIO_PIN_4
 #define TB2_STBY_GPIO_Port GPIOC
+#define SERVO_A_PWM_Pin GPIO_PIN_2
+#define SERVO_A_PWM_GPIO_Port GPIOA
 #define ARM_STBY_Pin GPIO_PIN_5
 #define ARM_STBY_GPIO_Port GPIOA
 #define TB2_AIN2_Pin GPIO_PIN_5

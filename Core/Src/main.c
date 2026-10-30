@@ -21,7 +21,6 @@
 #include "cmsis_os.h"
 #include "spi.h"
 #include "tim.h"
-#include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -29,6 +28,7 @@
 #include "SEGGER_RTT.h"
 #include "nrf24.h"
 #include "arm_control.h"
+#include "servo_soft_pwm.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -101,8 +101,7 @@ int main(void)
   MX_TIM5_Init();
   MX_TIM8_Init();
   MX_SPI4_Init();
-  MX_USART2_UART_Init();
-  MX_TIM13_Init();
+  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
   SEGGER_RTT_Init();
   SEGGER_RTT_SetFlagsUpBuffer(0, SEGGER_RTT_MODE_NO_BLOCK_SKIP);
@@ -205,7 +204,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-
+    if (htim->Instance == TIM7)
+    {
+      ServoSoftPwm_OnTimerElapsed();
+    }
   /* USER CODE END Callback 1 */
 }
 

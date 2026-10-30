@@ -64,7 +64,7 @@ void Arm_EncoderIRQ(void)
 
 static void BrakeChannel(uint32_t now)
 {
-    __HAL_TIM_SET_COMPARE(&htim13, TIM_CHANNEL_1, 0U);
+    __HAL_TIM_SET_COMPARE(&htim9, TIM_CHANNEL_2, 0U);
     /* PWM=0 and IN1=IN2=1 explicitly short-brakes while STBY is high. */
     HAL_GPIO_WritePin(ARM_IN1_GPIO_Port, ARM_IN1_Pin, GPIO_PIN_SET);
     HAL_GPIO_WritePin(ARM_IN2_GPIO_Port, ARM_IN2_Pin, GPIO_PIN_SET);
@@ -98,7 +98,7 @@ static void Abort(uint32_t reason, uint32_t now, PID_t *speed)
 
 static float Apply(float duty, uint32_t now)
 {
-    uint32_t period = __HAL_TIM_GET_AUTORELOAD(&htim13) + 1U;
+    uint32_t period = __HAL_TIM_GET_AUTORELOAD(&htim9) + 1U;
     uint32_t magnitude = (uint32_t)(fabsf(duty) * (float)period + 0.5f);
     if (magnitude == 0U) {
         BrakeChannel(now);
@@ -116,7 +116,7 @@ static float Apply(float duty, uint32_t now)
     HAL_GPIO_WritePin(ARM_IN2_GPIO_Port, ARM_IN2_Pin,
                       physical > 0 ? GPIO_PIN_RESET : GPIO_PIN_SET);
     uint32_t compare = magnitude;
-    __HAL_TIM_SET_COMPARE(&htim13, TIM_CHANNEL_1, compare);
+    __HAL_TIM_SET_COMPARE(&htim9, TIM_CHANNEL_2, compare);
     s_output_running = 1U;
     s_last_direction = physical;
     g_arm_debug.pwm_compare = compare;
@@ -157,9 +157,9 @@ void ArmControl_Task(void)
     s_previous_ab = ReadAB();
     uint32_t now = osKernelSysTick();
     StandbyDrive(now);
-    __HAL_TIM_DISABLE_OCxPRELOAD(&htim13, TIM_CHANNEL_1);
+    __HAL_TIM_DISABLE_OCxPRELOAD(&htim9, TIM_CHANNEL_2);
     HAL_StatusTypeDef status =
-        HAL_TIM_PWM_Start(&htim13, TIM_CHANNEL_1);
+        HAL_TIM_PWM_Start(&htim9, TIM_CHANNEL_2);
     g_arm_debug.start_status = (uint32_t)status;
     g_arm_debug.ready = status == HAL_OK;
     uint32_t last_wake = now, last_sample = now;

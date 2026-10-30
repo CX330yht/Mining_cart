@@ -1,4 +1,6 @@
 #include "servo.h"
+#include "servo_soft_pwm.h"
+#include <stddef.h>
 #include "tim.h"
 #include "cmsis_os.h"
 #include <math.h>
@@ -16,34 +18,43 @@ typedef struct {
 
 /* Calibrate endpoints and direction independently for each physical servo. */
 static const ServoChannel_t s_channels[SERVO_COUNT] = {
-    {&htim9, TIM_CHANNEL_1, 500U, 2500U, 0U},
-    {&htim9, TIM_CHANNEL_2, 500U, 2500U, 0U},
+    {NULL, 0U, 500U, 2500U, 0U},
+    {NULL, 0U, 500U, 2500U, 0U},
     {&htim3, TIM_CHANNEL_3, 500U, 2500U, 0U},
     {&htim3, TIM_CHANNEL_4, 500U, 2500U, 0U}
 };
 
 static const float s_initial_deg[SERVO_COUNT] = {90.0f, 0.0f, 0.0f, 0.0f};
+/* Assembly command limits: A pitch, B rotation, C1/C2 grips. */
+static const float s_min_deg[SERVO_COUNT] = {30.0f, 0.0f, 0.0f, 0.0f};
+static const float s_max_deg[SERVO_COUNT] = {150.0f, 180.0f, 70.0f, 70.0f};
 
 volatile float g_servo_target_deg[SERVO_COUNT] = {90.0f, 0.0f, 0.0f, 0.0f};
 volatile uint8_t g_servo_hold = 0U;
 volatile ServoDebug_t g_servo_debug;
 
-static float Servo_LimitAngle(float angle)
+static float Servo_LimitAngle(uint32_t index, float angle)
 {
-    if (angle < 0.0f) return 0.0f;
-    if (angle > 180.0f) return 180.0f;
+    if (index >= SERVO_COUNT) return 0.0f;
+    if (!isfinite(angle)) return s_initial_deg[index];
+    if (angle < s_min_deg[index]) return s_min_deg[index];
+    if (angle > s_max_deg[index]) return s_max_deg[index];
     return angle;
 }
 
 static void Servo_Write(uint32_t index, float angle)
 {
+    if (index >= SERVO_COUNT) return;
+    /* Clamp again at the common output path before mapping angle to pulse. */
+    angle = Servo_LimitAngle(index, angle);
     const ServoChannel_t *config = &s_channels[index];
     float physical = config->reversed ? (180.0f - angle) : angle;
     float pulse = (float)config->min_us + physical *
                   (float)(config->max_us - config->min_us) / 180.0f;
     uint16_t pulse_us = (uint16_t)(pulse + 0.5f);
 
-    __HAL_TIM_SET_COMPARE(config->timer, config->channel, pulse_us);
+    if (index < 2U) ServoSoftPwm_SetPulseUs(index, pulse_us);
+    else __HAL_TIM_SET_COMPARE(config->timer, config->channel, pulse_us);
     g_servo_debug.angle_deg[index] = angle;
     g_servo_debug.pulse_us[index] = pulse_us;
 }
@@ -53,28 +64,36 @@ HAL_StatusTypeDef Servo_Init(void)
     g_servo_debug = (ServoDebug_t){0};
     g_servo_hold = 0U;
 
-    /* All initial compares are written before enabling any PWM output. */
+    HAL_StatusTypeDef soft_status = ServoSoftPwm_Init();
+    if (soft_status != HAL_OK) return soft_status;
+    /* A/B use TIM7 GPIO pulses; C1/C2 use TIM3 hardware PWM. */
     for (uint32_t i = 0U; i < SERVO_COUNT; ++i) {
         g_servo_debug.start_status[i] = HAL_ERROR;
         g_servo_target_deg[i] = s_initial_deg[i];
         Servo_Write(i, s_initial_deg[i]);
     }
     __HAL_TIM_SET_COUNTER(&htim3, 0U);
-    __HAL_TIM_SET_COUNTER(&htim9, 0U);
     (void)HAL_TIM_GenerateEvent(&htim3, TIM_EVENTSOURCE_UPDATE);
-    (void)HAL_TIM_GenerateEvent(&htim9, TIM_EVENTSOURCE_UPDATE);
 
-    for (uint32_t i = 0U; i < SERVO_COUNT; ++i) {
+    for (uint32_t i = 2U; i < SERVO_COUNT; ++i) {
         HAL_StatusTypeDef status = HAL_TIM_PWM_Start(
             s_channels[i].timer, s_channels[i].channel);
         g_servo_debug.start_status[i] = status;
         if (status != HAL_OK) {
-            for (uint32_t j = 0U; j < SERVO_COUNT; ++j) {
+            for (uint32_t j = 2U; j < SERVO_COUNT; ++j) {
                 (void)HAL_TIM_PWM_Stop(s_channels[j].timer,
                                        s_channels[j].channel);
             }
             return status;
         }
+    }
+    soft_status = ServoSoftPwm_Start();
+    g_servo_debug.start_status[0] = soft_status;
+    g_servo_debug.start_status[1] = soft_status;
+    if (soft_status != HAL_OK) {
+        for (uint32_t i = 2U; i < SERVO_COUNT; ++i)
+            (void)HAL_TIM_PWM_Stop(s_channels[i].timer, s_channels[i].channel);
+        return soft_status;
     }
     g_servo_debug.ready = 1U;
     return HAL_OK;
@@ -87,14 +106,14 @@ void Servo_Update(float dt_s)
     if (dt_s > 0.1f) dt_s = 0.1f;
 
     for (uint32_t i = 0U; i < SERVO_COUNT; ++i) {
-        float current = g_servo_debug.angle_deg[i];
+        float current = Servo_LimitAngle(i, g_servo_debug.angle_deg[i]);
         float target = g_servo_target_deg[i];
 
         if (!isfinite(target)) {
             target = current;
             g_servo_debug.invalid_target_count++;
         }
-        target = Servo_LimitAngle(target);
+        target = Servo_LimitAngle(i, target);
         if (g_servo_hold) target = current;
         g_servo_target_deg[i] = target;
 
@@ -103,7 +122,7 @@ void Servo_Update(float dt_s)
         if (difference > step) current += step;
         else if (difference < -step) current -= step;
         else current = target;
-        Servo_Write(i, Servo_LimitAngle(current));
+        Servo_Write(i, current);
     }
     g_servo_debug.update_count++;
 }

@@ -30,10 +30,16 @@ volatile float g_target_rpm[TB6612_MOTOR_COUNT] = {0};
 volatile float g_ramped_target_rpm[TB6612_MOTOR_COUNT] = {0};
 volatile float g_pid_command[TB6612_MOTOR_COUNT] = {0};
 
-/* M1 bench baseline; starting values only for the other three motors. */
-volatile float g_speed_kp[TB6612_MOTOR_COUNT] = {0.030f, 0.030f, 0.030f, 0.030f};
-volatile float g_speed_ki[TB6612_MOTOR_COUNT] = {0.010f, 0.010f, 0.010f, 0.010f};
-volatile float g_speed_kd[TB6612_MOTOR_COUNT] = {0};
+/* M1 40 rpm bench result; common starting gains for all four wheels. */
+volatile float g_speed_kp[TB6612_MOTOR_COUNT] = {
+    0.055f, 0.055f, 0.055f, 0.055f
+};
+volatile float g_speed_ki[TB6612_MOTOR_COUNT] = {
+    0.030f, 0.030f, 0.030f, 0.030f
+};
+volatile float g_speed_kd[TB6612_MOTOR_COUNT] = {
+    0.0f, 0.0f, 0.0f, 0.0f
+};
 
 volatile uint32_t g_motor_enable = 0U;
 volatile uint32_t g_motor_mode = MOTOR_MODE_OPEN_LOOP;
@@ -59,7 +65,7 @@ static TIM_HandleTypeDef *const s_encoder_timers[TB6612_MOTOR_COUNT] = {
 };
 
 static const int8_t s_encoder_direction[TB6612_MOTOR_COUNT] = {
-    1,-1,1,-1
+    1, 1, -1, 1
 };
 
 static float RampTo(float current, float target, float max_step)
@@ -167,7 +173,11 @@ void MotorControl_Task(void)
             TB6612_StopAll();
             Error_Handler();
         }
-        PID_Init(&speed_pid[i], 0.030f, 0.010f, 0.0f, TB6612_MAX_DUTY);
+        PID_Init(&speed_pid[i],
+          g_speed_kp[i],
+          g_speed_ki[i],
+          g_speed_kd[i],
+          TB6612_MAX_DUTY);
     }
     g_motor_debug.ready = 1U;
 

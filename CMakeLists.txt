@@ -32,7 +32,9 @@ message("Build type: " ${CMAKE_BUILD_TYPE})
 enable_language(C ASM)
 
 # Create an executable object type
-add_executable(${CMAKE_PROJECT_NAME})
+add_executable(${CMAKE_PROJECT_NAME}
+        user/servo/servo_soft_pwm.h
+        user/servo/servo_soft_pwm.c)
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE -fno-use-linker-plugin)
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -54,6 +56,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         user/servo/servo.c
         user/nrf24/nrf24.c
         user/arm/arm_control.c
+        user/servo/servo_soft_pwm.c
 
         # Add user sources here
 )
