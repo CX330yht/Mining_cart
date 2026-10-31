@@ -9,9 +9,11 @@ typedef struct {
     float position_target_deg,position_error_deg;
     uint32_t position_settle_ms;
     uint8_t at_target;
+    /* Automatic first accepted SW4 calibration, once per A-board boot. */
+    uint32_t auto_zero_count,auto_zero_epoch;
 } ArmDebug_t;
 enum { ARM_STOP_NONE=0,ARM_STOP_DISABLED=1,ARM_STOP_CONFIG=2,
-       ARM_STOP_NO_ZERO=3,ARM_STOP_LIMIT=4,ARM_STOP_STALL=7 };
+       ARM_STOP_NO_ZERO=3,ARM_STOP_LIMIT=4 };
 extern volatile uint32_t g_arm_enable,g_arm_zero_request;
 extern volatile int32_t g_arm_encoder_direction,g_arm_motor_direction;
 extern volatile float g_arm_counts_per_joint_rev,g_arm_target_deg;

@@ -1,7 +1,7 @@
 #ifndef CONTROL_LINK_H
 #define CONTROL_LINK_H
 #include "radio_protocol.h"
-#define LINK_WHEEL_MAX_RPM 40.0f
+#define LINK_WHEEL_MAX_RPM 320.0f
 enum { LINK_BOOT=1, LINK_TIMEOUT=2, LINK_ESTOP=3, LINK_INPUT=4,
        LINK_DISABLED=5, LINK_ACTUATOR=6, LINK_RADIO=7, LINK_MANUAL=8 };
 typedef struct {

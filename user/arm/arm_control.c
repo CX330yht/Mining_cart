@@ -9,7 +9,7 @@ volatile uint32_t g_arm_enable=0,g_arm_zero_request=0;
 volatile int32_t g_arm_encoder_direction=1,g_arm_motor_direction=1;
 volatile float g_arm_counts_per_joint_rev=12936.0f;
 volatile float g_arm_target_deg=0,g_arm_min_deg=0,g_arm_max_deg=90;
-volatile float g_arm_max_rpm=2.0f,g_arm_max_duty=.50f;
+volatile float g_arm_max_rpm=2.0f,g_arm_max_duty=1.0f;
 volatile float g_arm_pos_kp=.40f,g_arm_speed_kp=.50f,g_arm_speed_ki=1.50f;
 volatile ArmDebug_t g_arm_debug;
 static volatile uint32_t s_raw_count,s_invalid_edges;
@@ -112,14 +112,14 @@ static uint8_t ConfigValid(void)
         isfinite(g_arm_min_deg) && isfinite(g_arm_max_deg) &&
         g_arm_min_deg>=0 && g_arm_max_deg<=90 && g_arm_min_deg<g_arm_max_deg &&
         isfinite(g_arm_max_rpm) && g_arm_max_rpm>0 && g_arm_max_rpm<=2 &&
-        isfinite(g_arm_max_duty) && g_arm_max_duty>0 && g_arm_max_duty<=.5f &&
+        isfinite(g_arm_max_duty) && g_arm_max_duty>0 && g_arm_max_duty<=1.0f &&
         isfinite(g_arm_pos_kp) && g_arm_pos_kp>0 &&
         isfinite(g_arm_speed_kp) && g_arm_speed_kp>0 &&
         isfinite(g_arm_speed_ki) && g_arm_speed_ki>=0;
 }
 void ArmControl_Task(void)
 {
-    PID_t speed; PID_Init(&speed,.5f,1.5f,0,.5f);
+    PID_t speed; PID_Init(&speed,.5f,1.5f,0,1.0f);
     g_arm_debug=(ArmDebug_t){0}; s_previous_ab=ReadAB();
     uint32_t now=osKernelSysTick(); StandbyDrive(now);
     __HAL_DBGMCU_FREEZE_TIM9();
@@ -127,8 +127,8 @@ void ArmControl_Task(void)
     HAL_StatusTypeDef st=HAL_TIM_PWM_Start(&htim9,TIM_CHANNEL_2);
     g_arm_debug.start_status=st; g_arm_debug.ready=st==HAL_OK;
     uint32_t wake=now,last=now,previous=s_raw_count,epoch=0;
-    uint32_t last_movement=now,settle_start=now,wake_start=now;
-    uint8_t settling=0;
+    uint32_t settle_start=now,wake_start=now;
+    uint8_t settling=0,initial_zero_done=0;
     float filtered=0;
     for(;;) {
         osDelayUntil(&wake,10);
@@ -137,18 +137,31 @@ void ArmControl_Task(void)
         uint32_t raw=s_raw_count; int32_t delta=(int32_t)(raw-previous); previous=raw;
         g_arm_debug.raw_count=raw; g_arm_debug.encoder_count=(int32_t)raw;
         g_arm_debug.invalid_edges=s_invalid_edges; g_arm_debug.update_count++;
-        if(g_arm_zero_request) {
-            g_arm_zero_request=0;
-            /* Explicit horizontal zero is accepted only while remotely disabled. */
-            if(!cmd.enabled) {
-                s_zero_raw=raw; g_arm_debug.zero_valid=1;
-                g_arm_target_deg=0; filtered=0; PID_Reset(&speed);
-            }
-        }
         if(!ConfigValid() || !ms || ms>100) {
             Abort(ARM_STOP_CONFIG,now,&speed);
             if(cmd.enabled) Wireless_RequestStop(LINK_ACTUATOR);
             continue;
+        }
+        /* cmd.enabled is published only after the receiver accepts a fresh,
+           centered SW4 enable handshake. Calibrate once per A-board boot. */
+        uint8_t first_enable_zero = cmd.enabled && !initial_zero_done &&
+                                    g_arm_debug.ready;
+        if(g_arm_zero_request || first_enable_zero) {
+            g_arm_zero_request=0;
+            /* Manual recalibration remains disabled-only; normal use needs none. */
+            if(first_enable_zero || !cmd.enabled) {
+                StandbyDrive(now); s_active=0;
+                s_zero_raw=raw; g_arm_debug.zero_valid=1;
+                g_arm_target_deg=0; filtered=0; delta=0;
+                PID_Reset(&speed);
+                settling=0; g_arm_debug.at_target=0;
+                g_arm_debug.position_settle_ms=0;
+                if(first_enable_zero) {
+                    initial_zero_done=1;
+                    g_arm_debug.auto_zero_count++;
+                    g_arm_debug.auto_zero_epoch=cmd.epoch;
+                }
+            }
         }
         float dt=ms*.001f,dir=(float)g_arm_encoder_direction;
         float rpm=(float)delta*dir*60/(g_arm_counts_per_joint_rev*dt);
@@ -174,7 +187,7 @@ void ArmControl_Task(void)
         if(!s_active || epoch!=cmd.epoch) {
             PID_Reset(&speed); StandbyDrive(now);
             g_arm_target_deg=fminf(g_arm_max_deg,fmaxf(g_arm_min_deg,angle));
-            epoch=cmd.epoch; s_active=1; last_movement=wake_start=now;
+            epoch=cmd.epoch; s_active=1; wake_start=now;
             HAL_GPIO_WritePin(ARM_STBY_GPIO_Port,ARM_STBY_Pin,GPIO_PIN_SET);
             settling=0;
         }
@@ -205,11 +218,6 @@ void ArmControl_Task(void)
         }
         float actual=Apply(duty,now);
         if(actual==0 && duty!=0) PID_Reset(&speed);
-        /* Holding in the arrival band is not a no-motion fault. */
-        if(delta || in_band || fabsf(actual)<.10f || fabsf(target)<.20f)
-            last_movement=now;
-        if((uint32_t)(now-last_movement)>=500U) {
-            Abort(ARM_STOP_STALL,now,&speed); Wireless_RequestStop(LINK_ACTUATOR);
-        }
+        /* Continuous remote control: no bench travel/duration or no-count timer. */
     }
 }

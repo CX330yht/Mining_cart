@@ -1,7 +1,7 @@
 #include "nrf24.h"
 #include "spi.h"
 #include <string.h>
-#define NRF_RF_CHANNEL 40U
+#define NRF_RF_CHANNEL 72U
 #if defined(STM32F427xx)
 #define RADIO_SPI hspi4
 #define RADIO_RX 1U
