@@ -5,11 +5,12 @@
 #include "wireless.h"
 #include <math.h>
 #define ARM_REVERSE_MS 500U
+#define ARM_PWM_HARD_LIMIT 1.00f
 volatile uint32_t g_arm_enable=0,g_arm_zero_request=0;
 volatile int32_t g_arm_encoder_direction=1,g_arm_motor_direction=1;
 volatile float g_arm_counts_per_joint_rev=12936.0f;
 volatile float g_arm_target_deg=0,g_arm_min_deg=0,g_arm_max_deg=90;
-volatile float g_arm_max_rpm=2.0f,g_arm_max_duty=1.0f;
+volatile float g_arm_max_rpm=2.0f,g_arm_max_duty=ARM_PWM_HARD_LIMIT;
 volatile float g_arm_pos_kp=.40f,g_arm_speed_kp=.50f,g_arm_speed_ki=1.50f;
 volatile ArmDebug_t g_arm_debug;
 static volatile uint32_t s_raw_count,s_invalid_edges;
@@ -19,6 +20,16 @@ static int8_t s_last_direction;
 static float Clamp(float x, float limit)
 {
     return x > limit ? limit : (x < -limit ? -limit : x);
+}
+
+static float TargetLowerBound(void)
+{
+    return fmaxf(0.0f,g_arm_min_deg);
+}
+
+static float LimitTargetAngle(float value)
+{
+    return fminf(g_arm_max_deg,fmaxf(TargetLowerBound(),value));
 }
 
 static uint8_t ReadAB(void)
@@ -76,6 +87,8 @@ static void Abort(uint32_t reason, uint32_t now, PID_t *speed)
 
 static float Apply(float duty, uint32_t now)
 {
+    /* Independent final protection even if a caller asks for more PWM. */
+    duty = Clamp(duty, ARM_PWM_HARD_LIMIT);
     uint32_t period = __HAL_TIM_GET_AUTORELOAD(&htim9) + 1U;
     uint32_t magnitude = (uint32_t)(fabsf(duty) * (float)period + 0.5f);
     if (magnitude == 0U) {
@@ -112,14 +125,14 @@ static uint8_t ConfigValid(void)
         isfinite(g_arm_min_deg) && isfinite(g_arm_max_deg) &&
         g_arm_min_deg>=0 && g_arm_max_deg<=90 && g_arm_min_deg<g_arm_max_deg &&
         isfinite(g_arm_max_rpm) && g_arm_max_rpm>0 && g_arm_max_rpm<=2 &&
-        isfinite(g_arm_max_duty) && g_arm_max_duty>0 && g_arm_max_duty<=1.0f &&
+        isfinite(g_arm_max_duty) && g_arm_max_duty>0 && g_arm_max_duty<=ARM_PWM_HARD_LIMIT &&
         isfinite(g_arm_pos_kp) && g_arm_pos_kp>0 &&
         isfinite(g_arm_speed_kp) && g_arm_speed_kp>0 &&
         isfinite(g_arm_speed_ki) && g_arm_speed_ki>=0;
 }
 void ArmControl_Task(void)
 {
-    PID_t speed; PID_Init(&speed,.5f,1.5f,0,1.0f);
+    PID_t speed; PID_Init(&speed,.5f,1.5f,0,ARM_PWM_HARD_LIMIT);
     g_arm_debug=(ArmDebug_t){0}; s_previous_ab=ReadAB();
     uint32_t now=osKernelSysTick(); StandbyDrive(now);
     __HAL_DBGMCU_FREEZE_TIM9();
@@ -180,21 +193,23 @@ void ArmControl_Task(void)
         }
         uint8_t limit=HAL_GPIO_ReadPin(ARM_LIMIT_MIN_GPIO_Port,ARM_LIMIT_MIN_Pin)==GPIO_PIN_RESET ||
                       HAL_GPIO_ReadPin(ARM_LIMIT_MAX_GPIO_Port,ARM_LIMIT_MAX_Pin)==GPIO_PIN_RESET ||
-                      angle<g_arm_min_deg || angle>g_arm_max_deg;
+                      angle>g_arm_max_deg;
         if(limit) {
             Abort(ARM_STOP_LIMIT,now,&speed); Wireless_RequestStop(LINK_ACTUATOR); continue;
         }
         if(!s_active || epoch!=cmd.epoch) {
             PID_Reset(&speed); StandbyDrive(now);
-            g_arm_target_deg=fminf(g_arm_max_deg,fmaxf(g_arm_min_deg,angle));
+            g_arm_target_deg=LimitTargetAngle(angle);
             epoch=cmd.epoch; s_active=1; wake_start=now;
             HAL_GPIO_WritePin(ARM_STBY_GPIO_Port,ARM_STBY_Pin,GPIO_PIN_SET);
             settling=0;
         }
         g_arm_enable=1; g_arm_debug.stop_reason=ARM_STOP_NONE;
         /* Right Y is a joint position-target rate; neutral keeps this target. */
-        g_arm_target_deg+=cmd.arm_axis*g_arm_max_rpm*6.0f*dt;
-        g_arm_target_deg=fminf(g_arm_max_deg,fmaxf(g_arm_min_deg,g_arm_target_deg));
+        /* Saturate the stored target itself: a held DOWN command at zero
+           creates no hidden negative target or delay on the next UP command. */
+        g_arm_target_deg=LimitTargetAngle(
+            g_arm_target_deg+cmd.arm_axis*g_arm_max_rpm*6.0f*dt);
         float error=g_arm_target_deg-angle;
         g_arm_debug.position_target_deg=g_arm_target_deg;
         g_arm_debug.position_error_deg=error;
@@ -215,6 +230,14 @@ void ArmControl_Task(void)
         float duty=PID_Calculate(&speed,target,filtered,dt);
         if(!isfinite(duty)) {
             Abort(ARM_STOP_CONFIG,now,&speed); Wireless_RequestStop(LINK_ACTUATOR); continue;
+        }
+        /* The software zero boundary is directional, not a latched fault.
+           Block only outward/downward torque at or below zero; retain upward
+           correction and the ability to accept the next UP command. Physical
+           limit-switch inputs above still stop the drive normally. */
+        if(angle<=TargetLowerBound() && duty<0.0f) {
+            duty=0.0f;
+            PID_Reset(&speed);
         }
         float actual=Apply(duty,now);
         if(actual==0 && duty!=0) PID_Reset(&speed);
