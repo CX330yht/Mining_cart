@@ -9,11 +9,13 @@ typedef struct {
     uint8_t enabled,gear;
     float vx,vy,wz,arm_axis;
     float servo_deg[4];
+    uint8_t arm_auto_active,arm_preset_64;
 } WirelessCommand_t;
 typedef struct {
     uint32_t good_packets,bad_packets,duplicates,last_sequence,last_rx_ms;
     uint32_t epoch,stop_reason,arm_token;
     uint8_t link_ok,armed,rearm_ready;
+    uint8_t arm_auto_active,arm_preset_64;
 } WirelessDebug_t;
 extern volatile WirelessDebug_t g_wireless_debug;
 /* 0 immediately inhibits all consumers; restore to 1 then press SW4 again. */

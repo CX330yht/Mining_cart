@@ -142,6 +142,7 @@ void ArmControl_Task(void)
     uint32_t wake=now,last=now,previous=s_raw_count,epoch=0;
     uint32_t settle_start=now,wake_start=now;
     uint8_t settling=0,initial_zero_done=0;
+    uint8_t auto_was_active=0,auto_last_high=0;
     float filtered=0;
     for(;;) {
         osDelayUntil(&wake,10);
@@ -164,6 +165,7 @@ void ArmControl_Task(void)
             /* Manual recalibration remains disabled-only; normal use needs none. */
             if(first_enable_zero || !cmd.enabled) {
                 StandbyDrive(now); s_active=0;
+                auto_was_active=0;
                 s_zero_raw=raw; g_arm_debug.zero_valid=1;
                 g_arm_target_deg=0; filtered=0; delta=0;
                 PID_Reset(&speed);
@@ -189,6 +191,7 @@ void ArmControl_Task(void)
             else StandbyDrive(now);
             if(cmd.enabled && !g_arm_debug.ready) Wireless_RequestStop(LINK_ACTUATOR);
             g_arm_debug.at_target=0; g_arm_debug.position_settle_ms=0; settling=0;
+            auto_was_active=0;
             continue;
         }
         uint8_t limit=HAL_GPIO_ReadPin(ARM_LIMIT_MIN_GPIO_Port,ARM_LIMIT_MIN_Pin)==GPIO_PIN_RESET ||
@@ -201,15 +204,30 @@ void ArmControl_Task(void)
             PID_Reset(&speed); StandbyDrive(now);
             g_arm_target_deg=LimitTargetAngle(angle);
             epoch=cmd.epoch; s_active=1; wake_start=now;
+            auto_was_active=0;
             HAL_GPIO_WritePin(ARM_STBY_GPIO_Port,ARM_STBY_Pin,GPIO_PIN_SET);
             settling=0;
         }
         g_arm_enable=1; g_arm_debug.stop_reason=ARM_STOP_NONE;
-        /* Right Y is a joint position-target rate; neutral keeps this target. */
-        /* Saturate the stored target itself: a held DOWN command at zero
-           creates no hidden negative target or delay on the next UP command. */
-        g_arm_target_deg=LimitTargetAngle(
-            g_arm_target_deg+cmd.arm_axis*g_arm_max_rpm*6.0f*dt);
+        /* SW12 selects a persistent position command; neutral right-Y must
+           not overwrite it. Manual right-Y movement cancels auto at both ends. */
+        uint8_t auto_active=cmd.arm_auto_active && fabsf(cmd.arm_axis)<=.05f;
+        if(auto_active) {
+            if(!auto_was_active || auto_last_high!=cmd.arm_preset_64) {
+                PID_Reset(&speed); BrakeChannel(now);
+                settling=0; g_arm_debug.at_target=0;
+            }
+            g_arm_target_deg=LimitTargetAngle(cmd.arm_preset_64?50.0f:0.0f);
+        } else {
+            if(auto_was_active) {
+                g_arm_target_deg=LimitTargetAngle(angle);
+                PID_Reset(&speed); settling=0;
+            }
+            g_arm_target_deg=LimitTargetAngle(
+                g_arm_target_deg+cmd.arm_axis*g_arm_max_rpm*6.0f*dt);
+        }
+        auto_was_active=auto_active;
+        auto_last_high=cmd.arm_preset_64;
         float error=g_arm_target_deg-angle;
         g_arm_debug.position_target_deg=g_arm_target_deg;
         g_arm_debug.position_error_deg=error;

@@ -9,6 +9,8 @@ static volatile uint32_t s_stop_request;
 static void Lock(uint32_t reason)
 {
     s_command.enabled=0; s_ready=0; s_base_token=s_token;
+    s_command.arm_auto_active=0; s_command.arm_preset_64=0;
+    g_wireless_debug.arm_auto_active=0; g_wireless_debug.arm_preset_64=0;
     g_wireless_debug.armed=0; g_wireless_debug.rearm_ready=0;
     g_wireless_debug.stop_reason=reason;
 }
@@ -87,6 +89,10 @@ void Link_Process(const uint8_t data[32],uint32_t now)
     int turn=((p.keys&1U)?1:0)-((p.keys&2U)?1:0);
     s_command.wz=(float)turn*linear/0.32725f*scale;
     s_command.arm_axis=(float)p.axis[3]*0.001f;
+    s_command.arm_auto_active=(p.flags&RADIO_FLAG_ARM_AUTO)?1U:0U;
+    s_command.arm_preset_64=(p.flags&RADIO_FLAG_ARM_64)?1U:0U;
+    g_wireless_debug.arm_auto_active=s_command.arm_auto_active;
+    g_wireless_debug.arm_preset_64=s_command.arm_preset_64;
     s_command.gear=p.gear;
     for(unsigned i=0;i<4;i++) s_command.servo_deg[i]=p.servo_ddeg[i]*0.1f;
 }

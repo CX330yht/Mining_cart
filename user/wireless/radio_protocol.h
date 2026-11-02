@@ -3,11 +3,16 @@
 #include <stdint.h>
 #include <string.h>
 #define RADIO_PACKET_SIZE 32U
+#define RADIO_PROTOCOL_VERSION 2U
 #define RADIO_PERIOD_MS 20U
 #define RADIO_TIMEOUT_MS 300U
 #define RADIO_FLAG_ENABLED 1U
 #define RADIO_FLAG_ESTOP 2U
 #define RADIO_FLAG_FRESH 4U
+#define RADIO_FLAG_ARM_AUTO 8U
+#define RADIO_FLAG_ARM_64 16U
+#define RADIO_FLAG_SW12_DOWN 32U
+#define RADIO_FLAGS_VALID 0x3FU
 /* Keys: turnL,turnR,grip1,grip2,speed,estop,enable,rotateB. */
 #define RADIO_ACTION_KEYS 0x9FU
 #define RADIO_ENABLE_KEY 0x40U
@@ -38,7 +43,7 @@ static inline uint16_t RadioCRC(const uint8_t *p,uint32_t n)
 static inline void RadioEncode(uint8_t p[32],const RadioPacket_t *v)
 {
     memset(p,0,32);
-    p[0]=0x4FU; p[1]=0x44U; p[2]=1U; p[3]=v->flags;
+    p[0]=0x4FU; p[1]=0x44U; p[2]=RADIO_PROTOCOL_VERSION; p[3]=v->flags;
     RadioPut32(p+4,v->sequence); RadioPut32(p+8,v->arm_token);
     for(unsigned i=0;i<4;i++) {
         RadioPut16(p+12+2*i,(uint16_t)v->axis[i]);
@@ -49,7 +54,7 @@ static inline void RadioEncode(uint8_t p[32],const RadioPacket_t *v)
 }
 static inline uint8_t RadioDecode(const uint8_t p[32],RadioPacket_t *v)
 {
-    if(p[0]!=0x4F || p[1]!=0x44 || p[2]!=1 || (p[3]&~7U) ||
+    if(p[0]!=0x4F || p[1]!=0x44 || p[2]!=RADIO_PROTOCOL_VERSION || (p[3]&~RADIO_FLAGS_VALID) ||
        RadioGet16(p+30)!=RadioCRC(p,30) || p[28]>2U) return 0U;
     v->flags=p[3]; v->sequence=RadioGet32(p+4); v->arm_token=RadioGet32(p+8);
     v->gear=p[28]; v->keys=p[29];
@@ -68,6 +73,7 @@ static inline uint8_t RadioCentered(const RadioPacket_t *p)
 {
     for(unsigned i=0;i<4;i++)
         if(p->axis[i] < -50 || p->axis[i] > 50) return 0U;
-    return (p->keys & RADIO_ACTION_KEYS)==0U;
+    return (p->keys & RADIO_ACTION_KEYS)==0U &&
+           !(p->flags & RADIO_FLAG_SW12_DOWN);
 }
 #endif
